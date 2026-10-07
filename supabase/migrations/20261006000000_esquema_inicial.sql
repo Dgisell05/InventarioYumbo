@@ -450,5 +450,13 @@ create policy "autenticados todo" on public.despacho_lineas for all to authentic
 create policy "autenticados todo" on public.cortes          for all to authenticated using (true) with check (true);
 create policy "autenticados todo" on public.movimientos     for all to authenticated using (true) with check (true);
 
-revoke all on all tables in schema public from anon;
+-- Permisos explícitos: las tablas creadas por el conector no heredan los grants por defecto de Supabase.
+grant usage on schema public to authenticated, anon;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+grant execute on all functions in schema public to authenticated;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant execute on functions to authenticated;
 grant select on public.v_stock, public.v_stock_por_largo, public.v_kardex, public.v_despachos to authenticated;
+-- anon no tiene políticas RLS, así que no ve filas; este revoke es un refuerzo (correrlo en el SQL Editor).
+revoke all on all tables in schema public from anon;
