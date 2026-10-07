@@ -248,7 +248,7 @@ for each row execute function public.cortes_registrar_movimientos();
 -- Vistas
 -- -----------------------------------------------------------------------------
 -- Stock por producto: en metros (unidad 'm') o unidades (unidad 'und').
-create or replace view public.v_stock as
+create or replace view public.v_stock with (security_invoker = on) as
 select
   p.id            as producto_id,
   p.codigo,
@@ -270,7 +270,7 @@ left join public.movimientos m on m.producto_id = p.id
 group by p.id;
 
 -- Stock por producto y largo (informativo): cuántas piezas de cada largo deberían quedar.
-create or replace view public.v_stock_por_largo as
+create or replace view public.v_stock_por_largo with (security_invoker = on) as
 select
   p.id      as producto_id,
   p.codigo,
@@ -284,7 +284,7 @@ group by p.id, m.largo_m
 having sum(m.signo * m.cantidad_und) <> 0;
 
 -- Kardex: movimientos con saldo acumulado por producto.
-create or replace view public.v_kardex as
+create or replace view public.v_kardex with (security_invoker = on) as
 select
   m.id,
   m.fecha,
@@ -311,7 +311,7 @@ left join public.despachos d on d.id = m.despacho_id
 order by m.fecha desc, m.created_at desc;
 
 -- Despachos con totales, para el historial.
-create or replace view public.v_despachos as
+create or replace view public.v_despachos with (security_invoker = on) as
 select
   d.id, d.numero, d.fecha, d.cliente_id, d.cliente_nombre, d.nota, d.estado, d.texto_original, d.created_at,
   count(l.id)                       as lineas,
@@ -404,18 +404,31 @@ begin
   return query select v_despacho_id, v_numero;
 end $$;
 
--- Anular un despacho: devuelve el stock borrando sus movimientos y marca el estado.
+-- Anular un despacho: marca el estado y devuelve el stock con movimientos inversos
+-- (no se borra nada: el kardex conserva la salida y su reversión).
 create or replace function public.anular_despacho(p_despacho_id uuid, p_motivo text default null)
 returns void language plpgsql security invoker as $$
+declare
+  v_numero bigint;
+  r record;
 begin
   update public.despachos
      set estado = 'anulado',
          nota   = concat_ws(' · ', nota, 'ANULADO: ' || coalesce(p_motivo, 'sin motivo'))
-   where despachos.id = p_despacho_id and estado = 'confirmado';
-  if not found then
+   where despachos.id = p_despacho_id and estado = 'confirmado'
+   returning despachos.numero into v_numero;
+  if v_numero is null then
     raise exception 'Despacho no existe o ya estaba anulado';
   end if;
-  delete from public.movimientos where despacho_id = p_despacho_id;
+  for r in
+    select producto_id, cantidad_und, largo_m
+      from public.movimientos
+     where despacho_id = p_despacho_id and tipo = 'salida'
+  loop
+    insert into public.movimientos (fecha, tipo, producto_id, cantidad_und, largo_m, despacho_id, nota, created_by)
+    values (current_date, 'ajuste_entrada', r.producto_id, r.cantidad_und, r.largo_m, p_despacho_id,
+            'Anulación despacho ' || v_numero, auth.uid());
+  end loop;
 end $$;
 
 -- -----------------------------------------------------------------------------

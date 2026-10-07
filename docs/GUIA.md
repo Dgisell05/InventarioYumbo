@@ -4,6 +4,8 @@ Tiempo estimado: una tarde para los pasos 1 a 5, una semana de pruebas en parale
 
 Marcado con **[tú]** lo que solo puede hacer la persona dueña de las cuentas, y con **[Claude]** lo que se puede pedir en una sesión de Claude Code con los conectores de Supabase y Lovable.
 
+> **Estado al 7 de octubre de 2026:** pasos 1, 2, 4.3 y 5 ya están hechos. Proyecto Supabase `inventario-yumbo` (ref `mugfbdzyhjdvlouybngl`), esquema y datos cargados, función `interpretar-despacho` desplegada, app Lovable `Inventario Yumbo` conectada. Pendientes: usuarios (paso 3), secreto `ANTHROPIC_API_KEY` (paso 4.2), conteo físico (paso 6) y pruebas (paso 7).
+
 ## Paso 1 · Crear el proyecto en Supabase  [tú o Claude]
 
 1. En https://supabase.com/dashboard, organización actual (plan Pro), **New project**: nombre `inventario-yumbo`, región `us-east-1`, clave de base de datos guardada en un lugar seguro.
@@ -20,6 +22,8 @@ En el SQL Editor del proyecto nuevo (o con el conector), ejecutar en este orden:
 3. `supabase/seed/02_clientes.sql`
 
 Verificar: `select count(*) from productos;` debe dar 40 y `select count(*) from clientes;` debe dar 96.
+
+Nota: el conector de Supabase que usa Claude no puede ejecutar `drop`, `delete` ni `revoke` (queda esperando una confirmación que nunca llega). Esas sentencias se corren a mano en el SQL Editor. Para proyectos nuevos, `supabase/todo_en_uno.sql` trae todo en un solo archivo para pegar.
 
 Si quieren que la numeración de despachos empiece en otro número:
 
@@ -91,3 +95,5 @@ Requiere cuenta de Meta Business, un número que no esté en un WhatsApp persona
 | Rollos de acero (materia prima) | Fuera del alcance de esta app | Está en la otra app (`yumbo-inventory-flow`) |
 | Precios | Opcionales; si el producto tiene `precio_m`, el despacho lo usa | Catálogo |
 | Stock negativo | Bloqueado por defecto; se puede forzar con casilla | Parámetro `p_permitir_negativo` |
+| Anular un despacho | No borra nada: registra movimientos inversos y el kardex conserva ambos | Función `anular_despacho` |
+| Vistas | Respetan la seguridad por filas del usuario que consulta (`security_invoker`) | Migración |
